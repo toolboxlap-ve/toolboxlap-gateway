@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';" />
+  <title>TOOLBOXLAP Gateway — GMI Edition</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <div class="app" id="app">
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="logo-mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7l9-4 9 4-9 4-9-4z" />
+            <path d="M3 12l9 4 9-4" />
+            <path d="M3 17l9 4 9-4" />
+          </svg>
+        </div>
+        <div class="brand-block">
+          <div class="brand-title">TOOLBOXLAP Gateway</div>
+          <div class="brand-sub">
+            <span class="edition-pill">GMI Edition</span>
+            <span class="brand-version" id="app-version">v0.2.9</span>
+            <span class="brand-by">by TOOLBOXLAP</span>
+          </div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="status-pill" id="status-pill" data-state="stopped" aria-live="polite">
+          <span class="status-dot"></span>
+          <span id="status-label">STOPPED</span>
+        </div>
+        <div class="social-links" id="social-links" aria-label="Official links">
+          <button class="icon-btn" id="link-website" type="button" data-tooltip="Website"
+            aria-label="TOOLBOXLAP Website">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+          </button>
+          <button class="icon-btn" id="link-youtube" type="button" data-tooltip="YouTube"
+            aria-label="TOOLBOXLAP on YouTube">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path
+                d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" />
+              <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+          <button class="icon-btn" id="link-github" type="button" data-tooltip="GitHub"
+            aria-label="TOOLBOXLAP on GitHub">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55v-2.13c-3.2.7-3.87-1.36-3.87-1.36-.52-1.34-1.28-1.7-1.28-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.71 1.26 3.37.97.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.47.11-3.07 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.6.24 2.78.12 3.07.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.41-5.26 5.69.41.36.78 1.06.78 2.14v3.17c0 .3.21.66.8.55C20.22 21.39 23.5 17.07 23.5 12 23.5 5.65 18.35.5 12 .5z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main scrollable area -->
+    <main class="main-scroll" id="main-scroll">
+      <!-- GMI Connection -->
+      <section class="card">
+        <div class="card-head">
+          <h2>GMI Connection</h2>
+          <span class="provider-badge" id="provider-badge">GMI Cloud</span>
+        </div>
+        <div class="form-row">
+          <label for="api-key">GMI API Key</label>
+          <div class="api-row">
+            <input type="password" id="api-key" placeholder="sk-…  (stored securely on this device)" autocomplete="off"
+              spellcheck="false" />
+            <button class="btn ghost" id="api-key-toggle" type="button" title="Show / hide">Show</button>
+            <button class="btn outline" id="api-key-save" type="button">Save</button>
+            <button class="btn outline" id="api-key-test" type="button">Test</button>
+          </div>
+          <div class="msg" id="api-key-msg" style="display:none"></div>
+        </div>
+      </section>
+
+      <!-- Model -->
+      <section class="card">
+        <div class="card-head">
+          <h2>Model</h2>
+          <button class="btn outline" id="fetch-models" type="button">Fetch Models</button>
+        </div>
+        <div class="form-row">
+          <label for="model-select">Available Models</label>
+          <select id="model-select">
+            <option value="">— Fetch models to populate —</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="model-custom">Custom Model ID (optional)</label>
+          <input type="text" id="model-custom" placeholder="e.g. openai/gpt-oss-120b" spellcheck="false" />
+        </div>
+        <div class="msg info kv" id="active-model-msg" style="display:none; align-items:center;">
+          <span>Active model:</span>
+          <code id="active-model-val" class="selectable">—</code>
+          <button class="copy-btn" data-copy="active-model-val" type="button">Copy</button>
+        </div>
+        <div class="msg" id="models-msg" style="display:none"></div>
+      </section>
+
+      <!-- Gateway Control + Stats -->
+      <section class="card">
+        <div class="card-head">
+          <h2>Gateway</h2>
+          <span class="provider-badge" id="gateway-endpoint">127.0.0.1:8787</span>
+        </div>
+        <button class="btn primary big" id="toggle-gateway" type="button">Start Gateway</button>
+        <div class="stats-row" id="stats-row">
+          <div class="stat"><span class="stat-k">Requests</span><span class="stat-v" id="st-requests">0</span></div>
+          <div class="stat"><span class="stat-k">Success</span><span class="stat-v" id="st-success">0</span></div>
+          <div class="stat"><span class="stat-k">Errors</span><span class="stat-v" id="st-errors">0</span></div>
+          <div class="stat"><span class="stat-k">Avg</span><span class="stat-v" id="st-avg">—</span></div>
+          <div class="stat"><span class="stat-k">Uptime</span><span class="stat-v" id="st-uptime">00:00:00</span></div>
+        </div>
+        <div class="diag-row">
+          <span>Token usage:</span>
+          <code id="token-usage">unavailable</code>
+        </div>
+      </section>
+
+      <!-- Tabs: Advanced / Claude Setup / Activity / About -->
+      <section class="card tabs-card">
+        <div class="tab-headers" role="tablist">
+          <button class="tab-btn active" data-tab="adv" role="tab" type="button">Advanced</button>
+          <button class="tab-btn" data-tab="claude" role="tab" type="button">Claude Setup</button>
+          <button class="tab-btn" data-tab="activity" role="tab" type="button">Live Activity</button>
+          <button class="tab-btn" data-tab="about" role="tab" type="button">About</button>
+        </div>
+
+        <!-- Advanced -->
+        <div class="tab-content active" data-tab="adv">
+          <div class="hint">Host and Port are user-configurable. Provider and Provider Base URL are locked to the GMI
+            Cloud edition.</div>
+          <div class="adv-grid">
+            <div class="form-row">
+              <label for="adv-host">Host</label>
+              <input type="text" id="adv-host" placeholder="127.0.0.1" />
+            </div>
+            <div class="form-row">
+              <label for="adv-port">Port</label>
+              <input type="number" id="adv-port" min="1" max="65535" placeholder="8787" />
+            </div>
+            <div class="form-row span-2">
+              <label for="adv-alias">Claude-visible Alias</label>
+              <input type="text" id="adv-alias" placeholder="claude-opus-5" spellcheck="false" />
+            </div>
+            <div class="form-row">
+              <label for="adv-token">Local Gateway Token</label>
+              <div class="api-row">
+                <input type="password" id="adv-token" placeholder="toolboxlap" autocomplete="off" />
+                <button class="btn ghost" id="adv-token-toggle" type="button">Show</button>
+                <button class="btn ghost" id="adv-token-regen" type="button">Regen</button>
+                <button class="btn outline" id="adv-token-copy" data-copy="adv-token" type="button">Copy</button>
+              </div>
+            </div>
+            <div class="form-row">
+              <label for="adv-loglevel">Log Level</label>
+              <select id="adv-loglevel">
+                <option value="error">error</option>
+                <option value="warn">warn</option>
+                <option value="info" selected>info</option>
+                <option value="debug">debug</option>
+              </select>
+            </div>
+            <div class="form-row span-2">
+              <label class="check">
+                <input type="checkbox" id="adv-auth" />
+                <span>Require Local Gateway Token (recommended)</span>
+              </label>
+            </div>
+          </div>
+          <div class="adv-actions">
+            <button class="btn primary" id="adv-save" type="button">Save Advanced</button>
+            <span class="muted small" id="adv-save-msg"></span>
+          </div>
+        </div>
+
+        <!-- Claude Setup -->
+        <div class="tab-content" data-tab="claude">
+          <div class="hint">In Claude Desktop, point third-party inference to this running gateway.</div>
+          <ol class="steps">
+            <li>Open <strong>Claude Desktop</strong>.</li>
+            <li>Open <strong>Settings</strong>.</li>
+            <li>Enable <strong>Developer Mode</strong> if third-party inference settings are not visible.</li>
+            <li>Open <strong>Configure third-party inference</strong>.</li>
+            <li>Set <strong>Connection</strong> to <em>Gateway</em>.</li>
+            <li>Set <strong>Credential kind</strong> to <em>Static API key</em>.</li>
+            <li>
+              <strong>Gateway base URL</strong>:
+              <div class="kv"><code id="claude-url">http://127.0.0.1:8787</code><button class="copy-btn"
+                  data-copy="claude-url" type="button">Copy</button></div>
+            </li>
+            <li>
+              <strong>Gateway API key</strong> — use the <em>Local Gateway Token</em> shown below. <strong style="color:var(--amber)">This is NOT your GMI API key.</strong>
+              <div class="kv"><code id="claude-token" class="masked">••••••••••••</code><button class="copy-btn"
+                  data-copy="claude-token" type="button">Copy</button></div>
+            </li>
+            <li>Set <strong>Gateway auth scheme</strong> to <em>bearer</em>.</li>
+            <li>Enable <strong>Model Discovery</strong>.</li>
+            <li>Click <strong>Test model discovery</strong> — Claude should discover the Claude-compatible alias exposed
+              by TOOLBOXLAP Gateway.</li>
+            <li>Click <strong>Apply Changes</strong>.</li>
+            <li>Start a new Claude / Cowork task.</li>
+          </ol>
+
+          <div class="alias-explain">
+            <div class="ae-row"><span class="ae-k">Claude Desktop sees:</span><code
+                id="alias-from">claude-opus-5</code></div>
+            <div class="ae-row"><span class="ae-k">TOOLBOXLAP routes to:</span><code id="alias-to">—</code></div>
+            <div class="muted small">The Claude-style name is only a local compatibility alias. Actual responses come
+              from the selected GMI model.</div>
+          </div>
+        </div>
+
+        <!-- Live Activity -->
+        <div class="tab-content" data-tab="activity">
+          <div class="activity-head">
+            <div class="muted">Compact, sanitized request log (no prompts, no API keys, no request bodies).</div>
+            <div class="activity-actions">
+              <button class="copy-btn ghost" id="log-expand" type="button">Expand</button>
+              <button class="copy-btn ghost" id="log-clear" type="button">Clear</button>
+            </div>
+          </div>
+          <div class="log-container" id="log-container">
+            <div class="log-empty">No activity yet — start the gateway and make a request.</div>
+          </div>
+        </div>
+
+        <!-- About -->
+        <div class="tab-content" data-tab="about">
+          <div class="ae-row"><span class="ae-k">Product:</span><code>TOOLBOXLAP Gateway — GMI Edition</code></div>
+          <div class="ae-row"><span class="ae-k">Version:</span><code id="about-version" class="selectable">v0.2.9</code></div>
+          <div class="ae-row"><span class="ae-k">Provider:</span><code>GMI Cloud</code></div>
+          <div class="ae-row"><span class="ae-k">Provider Base URL:</span><code
+              id="about-baseurl" class="selectable">https://api.gmi-serving.com</code></div>
+          <div class="ae-row"><span class="ae-k">Local Gateway:</span><code
+              id="about-local" class="selectable">http://127.0.0.1:8787</code></div>
+          <div class="ae-row"><span class="ae-k">Claude alias:</span><code id="about-alias" class="selectable">claude-opus-5</code>
+          </div>
+          <div class="muted small" style="margin-top:8px">
+            Local Anthropic-compatible gateway for routing Claude-style clients to GMI Cloud models.
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="./renderer.js"></script>
+</body>
+</html>

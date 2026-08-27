@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+*.env.bak
+*.bak
+toolbox-gmi-key.txt
+toolbox-gmi-key.enc
+toolbox-local-token.txt
+toolbox-gateway-cfg.json
+startup.log
+
+# Generated builds and release bundles
+dist/
+candidate-dist/
+release/
+out/
+*.exe
+*.msi
+*.msix
+*.appx
+*.nupkg
+*.7z
+*.zip
+*.blockmap
+builder-debug.yml
+SHA256*.txt
+SHA256SUMS*
+*.sha256
+
+# Logs, test output, and process state
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/
+.nyc_output/
+*.pid
+*.pid.lock
+
+# Caches and temporary files
+.npm/
+.cache/
+.electron/
+.eslintcache
+tmp/
+temp/
+candidate-launch-data/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# IDE metadata
+.idea/
+.vscode/
+*.suo
+*.user
+*.code-workspace
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Known local-only audit/build leftovers
+build-final.log
+getnodes.ps1
+scripts/_cleanup.js

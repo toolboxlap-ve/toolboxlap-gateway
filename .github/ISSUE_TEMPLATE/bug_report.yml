@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a reproducible non-security problem
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Do not include API keys, tokens, `.env` contents, prompts, or private logs. Report security issues privately through SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: v0.2.8
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: sanitized-output
+    attributes:
+      label: Sanitized output
+      description: Remove credentials, prompts, usernames, and absolute local paths.

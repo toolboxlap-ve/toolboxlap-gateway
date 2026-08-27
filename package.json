@@ -1,0 +1,67 @@
+{
+  "name": "toolboxlap-gateway-gmi",
+  "version": "0.2.9",
+  "private": true,
+  "description": "TOOLBOXLAP Gateway — GMI Edition. Local Anthropic-compatible inference gateway that maps Claude-style aliases to GMI Cloud.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "src/main.cjs",
+  "author": "TOOLBOXLAP",
+  "copyright": "Copyright © 2026 TOOLBOXLAP",
+  "license": "GPL-3.0-only",
+  "homepage": "https://toolboxlap.com/",
+  "scripts": {
+    "start": "node src/server.js",
+    "start:gui": "electron .",
+    "build": "electron-builder",
+    "postbuild": "node scripts/postbuild.js",
+    "build:candidate": "electron-builder --config.directories.output=candidate-dist",
+    "postbuild:candidate": "node scripts/postbuild.js candidate-dist",
+    "dev": "node --watch src/server.js",
+    "test": "node scripts/run-tests.js all",
+    "test:unit": "node scripts/run-tests.js unit",
+    "test:integration": "node scripts/run-tests.js integration",
+    "smoke:gmi": "node scripts/smoke-gmi.js",
+    "check": "node --check src/main.cjs && node --check src/main.js && node --check src/preload.js && node --check src/server.js && node --check src/proxy.js && node --check src/config.js && node --check src/logger.js && node --check src/activity.js && node --check src/external-links.js && node --check src/providers/base-provider.js && node --check src/providers/gmi-provider.js && node --check src/ui/renderer.js && node --check scripts/postbuild.js && node --check scripts/reset-env.js && node --check scripts/run-tests.js && node --check scripts/smoke-gmi.js"
+  },
+  "build": {
+    "appId": "com.toolboxlap.gateway.gmi",
+    "productName": "TOOLBOXLAP Gateway — GMI Edition",
+    "artifactName": "TOOLBOXLAP-Gateway-GMI-${version}.${ext}",
+    "electronDownload": {
+      "cache": ".cache/electron"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "LICENSE",
+      "node_modules/dotenv/**/*"
+    ],
+    "asarUnpack": [
+      "src/main.cjs"
+    ],
+    "win": {
+      "executableName": "TOOLBOXLAP Gateway GMI",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3"
+  }
+}
