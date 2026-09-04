@@ -5,7 +5,9 @@
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';" />
-  <title>TOOLBOXLAP Gateway — GMI Edition</title>
+  <title>TOOLBOXLAP Gateway</title>
+  <link rel="icon" type="image/x-icon" href="../assets/icon.ico" />
+  <link rel="icon" type="image/png" href="../assets/icon.png" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 
@@ -25,8 +27,8 @@
         <div class="brand-block">
           <div class="brand-title">TOOLBOXLAP Gateway</div>
           <div class="brand-sub">
-            <span class="edition-pill">GMI Edition</span>
-            <span class="brand-version" id="app-version">v0.2.9</span>
+            <span class="edition-pill">Multi-Provider</span>
+            <span class="brand-version" id="app-version">v1.0 Beta</span>
             <span class="brand-by">by TOOLBOXLAP</span>
           </div>
         </div>
@@ -56,7 +58,7 @@
             </svg>
           </button>
           <button class="icon-btn" id="link-github" type="button" data-tooltip="GitHub"
-            aria-label="TOOLBOXLAP on GitHub">
+            aria-label="TOOLBOXLAP Gateway on GitHub">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path
                 d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55v-2.13c-3.2.7-3.87-1.36-3.87-1.36-.52-1.34-1.28-1.7-1.28-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.71 1.26 3.37.97.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.47.11-3.07 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.6.24 2.78.12 3.07.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.41-5.26 5.69.41.36.78 1.06.78 2.14v3.17c0 .3.21.66.8.55C20.22 21.39 23.5 17.07 23.5 12 23.5 5.65 18.35.5 12 .5z" />
@@ -68,16 +70,47 @@
 
     <!-- Main scrollable area -->
     <main class="main-scroll" id="main-scroll">
-      <!-- GMI Connection -->
-      <section class="card">
+      <!-- Provider & Connection -->
+      <section class="card" id="provider-card">
         <div class="card-head">
-          <h2>GMI Connection</h2>
-          <span class="provider-badge" id="provider-badge">GMI Cloud</span>
+          <h2>Provider &amp; Connection</h2>
+          <span class="provider-badge" id="provider-badge">—</span>
         </div>
+
         <div class="form-row">
-          <label for="api-key">GMI API Key</label>
+          <label for="provider-select">Provider</label>
+          <select id="provider-select">
+            <!-- Populated dynamically from provider manifests -->
+          </select>
+        </div>
+
+        <div class="provider-info" id="provider-info">
+          <div class="provider-desc" id="provider-desc"></div>
+          <div class="provider-links" id="provider-links">
+            <!-- Dynamically populated website and docs links -->
+          </div>
+        </div>
+
+        <div class="capabilities-section" id="capabilities-section">
+          <div class="capabilities-label">Capabilities</div>
+          <div class="capabilities-row" id="capabilities-row">
+            <!-- Populated from manifest: Streaming, Tools, Vision, Thinking, Reasoning -->
+          </div>
+        </div>
+
+        <div class="form-row" id="provider-base-url-row">
+          <label for="provider-base-url">Base URL</label>
           <div class="api-row">
-            <input type="password" id="api-key" placeholder="sk-…  (stored securely on this device)" autocomplete="off"
+            <input type="text" id="provider-base-url" placeholder="https://api.example.com" spellcheck="false" />
+            <button class="btn outline" id="provider-baseurl-save" type="button">Save</button>
+          </div>
+          <div class="msg" id="provider-baseurl-msg" style="display:none"></div>
+        </div>
+
+        <div class="form-row" id="api-key-row">
+          <label for="api-key" id="api-key-label">API Key</label>
+          <div class="api-row">
+            <input type="password" id="api-key" placeholder="API Key (stored securely on this device)" autocomplete="off"
               spellcheck="false" />
             <button class="btn ghost" id="api-key-toggle" type="button" title="Show / hide">Show</button>
             <button class="btn outline" id="api-key-save" type="button">Save</button>
@@ -88,20 +121,62 @@
       </section>
 
       <!-- Model -->
-      <section class="card">
+      <section class="card" id="model-card">
         <div class="card-head">
           <h2>Model</h2>
-          <button class="btn outline" id="fetch-models" type="button">Fetch Models</button>
+          <div class="card-head-actions">
+            <span class="cache-badge" id="models-cache-badge" style="display:none;">Cached</span>
+            <button class="btn outline" id="fetch-models" type="button">Fetch Models</button>
+          </div>
         </div>
-        <div class="form-row">
-          <label for="model-select">Available Models</label>
-          <select id="model-select">
+
+        <div class="form-row" id="model-search-row">
+          <label for="model-search-input">Available Models</label>
+          <div class="model-combobox" id="model-combobox">
+            <div class="model-search-box">
+              <span class="search-icon" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"/>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+              </span>
+              <input type="text" id="model-search-input" placeholder="Search models by name or ID (or click to browse)..." autocomplete="off" spellcheck="false" />
+              <button class="btn-clear-search" id="model-search-clear" type="button" title="Clear search" style="display:none;">&times;</button>
+              <button class="btn-toggle-dropdown" id="model-dropdown-toggle" type="button" title="Toggle model list" aria-expanded="false">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7 10l5 5 5-5z"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Dropdown list with favorites and all models -->
+            <div class="model-dropdown-menu" id="model-dropdown-menu" style="display:none;" role="listbox">
+              <div class="model-dropdown-empty" id="model-dropdown-empty" style="display:none;">
+                No models match your search.
+              </div>
+              <div class="model-dropdown-group" id="model-favorites-group" style="display:none;">
+                <div class="model-group-title">⭐ Starred Models</div>
+                <div class="model-group-items" id="model-favorites-items"></div>
+              </div>
+              <div class="model-dropdown-group" id="model-all-group">
+                <div class="model-group-title" id="model-all-title">All Models</div>
+                <div class="model-group-items" id="model-all-items"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hidden / fallback select kept for 100% backward compatibility with existing tests -->
+          <select id="model-select" style="position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px;">
             <option value="">— Fetch models to populate —</option>
           </select>
         </div>
+
         <div class="form-row">
           <label for="model-custom">Custom Model ID (optional)</label>
-          <input type="text" id="model-custom" placeholder="e.g. openai/gpt-oss-120b" spellcheck="false" />
+          <div class="api-row">
+            <input type="text" id="model-custom" placeholder="e.g. minimax/minimax-text-01" spellcheck="false" />
+            <button class="btn outline" id="model-custom-save" type="button">Set</button>
+          </div>
         </div>
         <div class="msg info kv" id="active-model-msg" style="display:none; align-items:center;">
           <span>Active model:</span>
@@ -112,12 +187,61 @@
       </section>
 
       <!-- Gateway Control + Stats -->
-      <section class="card">
+      <section class="card" id="gateway-card">
         <div class="card-head">
           <h2>Gateway</h2>
           <span class="provider-badge" id="gateway-endpoint">127.0.0.1:8787</span>
         </div>
+
+        <!-- Live Running Status Banner -->
+        <div class="gateway-live-banner" id="gateway-live-banner" style="display:none;" aria-live="polite">
+          <div class="live-banner-header">
+            <span class="live-indicator-dot"></span>
+            <span class="live-indicator-text">GATEWAY ACTIVE &amp; ROUTING</span>
+          </div>
+          <div class="live-banner-metrics">
+            <div class="live-metric">
+              <span class="live-metric-label">Provider</span>
+              <span class="live-metric-val" id="live-provider-name">—</span>
+            </div>
+            <div class="live-metric-divider"></div>
+            <div class="live-metric flex-grow">
+              <span class="live-metric-label">Actual Model</span>
+              <span class="live-metric-val highlight" id="live-actual-model">—</span>
+            </div>
+            <div class="live-metric-divider"></div>
+            <div class="live-metric">
+              <span class="live-metric-label">Client Alias</span>
+              <span class="live-metric-val" id="live-client-alias">claude-opus-5</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="gateway-summary-grid">
+          <div class="summary-item">
+            <span class="summary-label">Current Provider</span>
+            <span class="summary-val" id="summary-provider">—</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Actual Model</span>
+            <span class="summary-val" id="summary-model">—</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Client Alias</span>
+            <span class="summary-val" id="summary-alias">claude-opus-5</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Gateway Status</span>
+            <span class="summary-val" id="summary-status">STOPPED</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Current Port</span>
+            <span class="summary-val" id="summary-port">8787</span>
+          </div>
+        </div>
+
         <button class="btn primary big" id="toggle-gateway" type="button">Start Gateway</button>
+        <div class="msg" id="gateway-msg" style="display:none"></div>
         <div class="stats-row" id="stats-row">
           <div class="stat"><span class="stat-k">Requests</span><span class="stat-v" id="st-requests">0</span></div>
           <div class="stat"><span class="stat-k">Success</span><span class="stat-v" id="st-success">0</span></div>
@@ -142,8 +266,7 @@
 
         <!-- Advanced -->
         <div class="tab-content active" data-tab="adv">
-          <div class="hint">Host and Port are user-configurable. Provider and Provider Base URL are locked to the GMI
-            Cloud edition.</div>
+          <div class="hint">Host and Port are user-configurable. Local Gateway routes Anthropic-compatible requests to the active provider.</div>
           <div class="adv-grid">
             <div class="form-row">
               <label for="adv-host">Host</label>
@@ -204,7 +327,7 @@
                   data-copy="claude-url" type="button">Copy</button></div>
             </li>
             <li>
-              <strong>Gateway API key</strong> — use the <em>Local Gateway Token</em> shown below. <strong style="color:var(--amber)">This is NOT your GMI API key.</strong>
+              <strong>Gateway API key</strong> — use the <em>Local Gateway Token</em> shown below. <strong style="color:var(--amber)">This is NOT your upstream provider API key.</strong>
               <div class="kv"><code id="claude-token" class="masked">••••••••••••</code><button class="copy-btn"
                   data-copy="claude-token" type="button">Copy</button></div>
             </li>
@@ -221,7 +344,7 @@
                 id="alias-from">claude-opus-5</code></div>
             <div class="ae-row"><span class="ae-k">TOOLBOXLAP routes to:</span><code id="alias-to">—</code></div>
             <div class="muted small">The Claude-style name is only a local compatibility alias. Actual responses come
-              from the selected GMI model.</div>
+              from the active provider model.</div>
           </div>
         </div>
 
@@ -241,17 +364,17 @@
 
         <!-- About -->
         <div class="tab-content" data-tab="about">
-          <div class="ae-row"><span class="ae-k">Product:</span><code>TOOLBOXLAP Gateway — GMI Edition</code></div>
-          <div class="ae-row"><span class="ae-k">Version:</span><code id="about-version" class="selectable">v0.2.9</code></div>
-          <div class="ae-row"><span class="ae-k">Provider:</span><code>GMI Cloud</code></div>
+          <div class="ae-row"><span class="ae-k">Product:</span><code>TOOLBOXLAP Gateway</code></div>
+          <div class="ae-row"><span class="ae-k">Version:</span><code id="about-version" class="selectable">v1.0 Beta</code></div>
+          <div class="ae-row"><span class="ae-k">Current Provider:</span><code id="about-provider" class="selectable">—</code></div>
           <div class="ae-row"><span class="ae-k">Provider Base URL:</span><code
-              id="about-baseurl" class="selectable">https://api.gmi-serving.com</code></div>
+              id="about-baseurl" class="selectable">—</code></div>
           <div class="ae-row"><span class="ae-k">Local Gateway:</span><code
               id="about-local" class="selectable">http://127.0.0.1:8787</code></div>
           <div class="ae-row"><span class="ae-k">Claude alias:</span><code id="about-alias" class="selectable">claude-opus-5</code>
           </div>
           <div class="muted small" style="margin-top:8px">
-            Local Anthropic-compatible gateway for routing Claude-style clients to GMI Cloud models.
+            Local Anthropic-compatible gateway for routing Claude-style clients to OpenAI-compatible and cloud LLM providers.
           </div>
         </div>
       </section>

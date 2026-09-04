@@ -20,13 +20,20 @@ contextBridge.exposeInMainWorld('api', {
   updateConfig: (cfg) => ipcRenderer.invoke('update-config', cfg),
   getInit: () => ipcRenderer.invoke('get-init'),
 
-  // ---------- GMI credentials / connection ----------
-  setApiKey: (key) => ipcRenderer.invoke('set-api-key', key),
-  testConnection: () => ipcRenderer.invoke('test-connection'),
+  // ---------- Multi-Provider ----------
+  listProviders: () => ipcRenderer.invoke('list-providers'),
+  getProviderSettings: (providerId) => ipcRenderer.invoke('get-provider-settings', providerId),
+  setProvider: (providerId) => ipcRenderer.invoke('set-provider', providerId),
+  saveProviderSettings: (payload) => ipcRenderer.invoke('save-provider-settings', payload),
+
+  // ---------- Credentials / connection ----------
+  setApiKey: (arg1, arg2) => ipcRenderer.invoke('set-api-key', arg1, arg2),
+  testConnection: (providerId) => ipcRenderer.invoke('test-connection', providerId),
 
   // ---------- Models ----------
-  fetchModels: () => ipcRenderer.invoke('fetch-models'),
-  setModel: (id) => ipcRenderer.invoke('set-model', id),
+  fetchModels: (providerId) => ipcRenderer.invoke('fetch-models', providerId),
+  setModel: (idOrPayload) => ipcRenderer.invoke('set-model', idOrPayload),
+  toggleFavorite: (providerId, modelId) => ipcRenderer.invoke('toggle-favorite-model', providerId, modelId),
 
   // ---------- Gateway lifecycle ----------
   startGateway: () => ipcRenderer.invoke('start-gateway'),
@@ -65,4 +72,6 @@ contextBridge.exposeInMainWorld('api', {
   onActivityCleared: (cb) => subscribe('gateway-activity-cleared', cb),
   onConnection: (cb) => subscribe('gateway-connection', cb),
   onActiveModel: (cb) => subscribe('gateway-active-model', cb),
+  onActiveProvider: (cb) => subscribe('gateway-active-provider', cb),
+  onFavorites: (cb) => subscribe('gateway-favorites', cb),
 });

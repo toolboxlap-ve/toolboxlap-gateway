@@ -22,7 +22,7 @@ function readPackageMeta() {
         const pkg = JSON.parse(readFileSync(candidate, 'utf8'));
         return {
           name: pkg.productName || pkg.name || 'TOOLBOXLAP Gateway',
-          version: pkg.version || '0.2.9',
+          version: pkg.version || '1.0.0-beta',
         };
       }
       const parent = path.dirname(dir);
@@ -30,7 +30,7 @@ function readPackageMeta() {
       dir = parent;
     }
   } catch (e) { /* fall through */ }
-  return { name: 'TOOLBOXLAP Gateway', version: '0.2.9' };
+  return { name: 'TOOLBOXLAP Gateway', version: '1.0.0-beta' };
 }
 const PKG = readPackageMeta();
 
@@ -109,10 +109,9 @@ export function loadConfig(env = process.env) {
  * local-only bind AND no token configured.
  */
 export function isDevMode(cfg) {
-  return isLoopbackHost(cfg.host) && !cfg.localGatewayToken;
+  return (cfg.host === '127.0.0.1' || cfg.host === 'localhost') && !cfg.localGatewayToken;
 }
 
-/** Return true only for explicit local loopback bind addresses. */
 export function isLoopbackHost(host) {
   const normalized = String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
   return normalized === '127.0.0.1' || normalized === 'localhost' || normalized === '::1';

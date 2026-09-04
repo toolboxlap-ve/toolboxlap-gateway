@@ -308,7 +308,27 @@ test('non-loopback startup with a strong token authenticates every route', async
     let r = await getJson(`${localUrl}/health`);
     assert.equal(r.status, 401);
 
+    r = await getJson(`${localUrl}/v1/models`);
+    assert.equal(r.status, 401);
+
+    r = await postJson(`${localUrl}/v1/messages`, {
+      model: 'claude-opus-5',
+      max_tokens: 4,
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    assert.equal(r.status, 401);
+
+    r = await getJson(`${localUrl}/health`, { authorization: `Bearer ${token}` });
+    assert.equal(r.status, 200);
+
     r = await getJson(`${localUrl}/v1/models`, { authorization: `Bearer ${token}` });
+    assert.equal(r.status, 200);
+
+    r = await postJson(`${localUrl}/v1/messages`, {
+      model: 'claude-opus-5',
+      max_tokens: 4,
+      messages: [{ role: 'user', content: 'hi' }],
+    }, { authorization: `Bearer ${token}` });
     assert.equal(r.status, 200);
   } finally {
     await networkHandle.close();

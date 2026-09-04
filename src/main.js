@@ -11,7 +11,7 @@
 // (ELECTRON_RUN_AS_NODE=1) and needs to be respawned with a clean env.
 
 import electron from 'electron';
-const { app, BrowserWindow, ipcMain, safeStorage, shell } = electron;
+const { app, BrowserWindow, ipcMain, safeStorage, shell, Tray, Menu, nativeImage } = electron;
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -20,10 +20,10 @@ import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
 
 import { startServer } from './server.js';
-import {
-  fetchModels as gmiFetchModels,
-  testConnection as gmiTestConnection,
-} from './providers/gmi-provider.js';
+import { globalProviderRegistry } from './providers/provider-registry.js';
+import './providers/gmi-provider.js';
+import './providers/openrouter-provider.js';
+import './providers/deepseek-provider.js';
 import { createActivityTracker } from './activity.js';
 import { resolveExternalLink } from './external-links.js';
 
@@ -31,6 +31,32 @@ const require = createRequire(import.meta.url);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const ASSETS_DIR = (() => {
+  const rootAssets = path.join(__dirname, '..', 'assets');
+  if (fs.existsSync(rootAssets)) return rootAssets;
+  const localAssets = path.join(__dirname, 'assets');
+  if (fs.existsSync(localAssets)) return localAssets;
+  return rootAssets;
+})();
+
+function getAppIconPath() {
+  const ico = path.join(ASSETS_DIR, 'icon.ico');
+  if (fs.existsSync(ico)) return ico;
+  const png = path.join(ASSETS_DIR, 'icon.png');
+  if (fs.existsSync(png)) return png;
+  return null;
+}
+
+function getTrayIcon(state = 'stopped') {
+  const fileName = state === 'running' ? 'tray-running.png' : 'tray-stopped.png';
+  const p = path.join(ASSETS_DIR, fileName);
+  if (fs.existsSync(p)) {
+    return nativeImage.createFromPath(p);
+  }
+  const fallback = getAppIconPath();
+  return fallback ? nativeImage.createFromPath(fallback) : null;
+}
 
 // ---------- Fatal-error logger ----------
 // Writes a small text log to <userData>/startup.log so any future silent
@@ -67,7 +93,7 @@ process.on('uncaughtException', (err) => {
   // Show a minimal error window so the failure isn't invisible.
   try {
     if (app.isReady() && BrowserWindow) {
-      const w = new BrowserWindow({ width: 600, height: 400, title: 'TOOLBOXLAP Gateway — startup error' });
+      const w = new BrowserWindow({ width: 600, height: 400, title: 'TOOLBOXLAP Gateway — startup error', icon: getAppIconPath() });
       w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(
         '<!doctype html><html><head><meta charset="utf-8"><title>Startup error</title>' +
         '<style>body{background:#07090f;color:#e6e9ef;font:14px/1.4 system-ui;padding:20px;white-space:pre-wrap;word-break:break-word;}</style>' +
@@ -166,29 +192,49 @@ function getUserDataDir() {
 function configFile() {
   return path.join(getUserDataDir(), 'toolbox-gateway-cfg.json');
 }
-function apiKeyEncryptedFile() {
+function apiKeyEncryptedFile(providerId = 'gmi') {
+  return path.join(getUserDataDir(), `toolbox-key-${providerId}.enc`);
+}
+function apiKeyPlainFile(providerId = 'gmi') {
+  return path.join(getUserDataDir(), `toolbox-key-${providerId}.txt`);
+}
+function legacyApiKeyEncryptedFile() {
   return path.join(getUserDataDir(), 'toolbox-gmi-key.enc');
 }
-function apiKeyPlainFile() {
+function legacyApiKeyPlainFile() {
   return path.join(getUserDataDir(), 'toolbox-gmi-key.txt');
 }
 function localTokenFile() {
   return path.join(getUserDataDir(), 'toolbox-local-token.txt');
 }
 
-// GMI Edition is intentionally locked to a single provider + base URL.
-// These values MUST NOT be user-editable in this GUI edition.
-const LOCKED_PROVIDER = 'GMI Cloud';
-const LOCKED_GMI_BASE_URL = 'https://api.gmi-serving.com';
-
 const DEFAULT_CONFIG = {
   host: '127.0.0.1',
   port: 8787,
-  gmiBaseUrl: LOCKED_GMI_BASE_URL,
+  activeProvider: 'openrouter',
   claudeModelAlias: 'claude-opus-5',
-  upstreamModel: 'MiniMaxAI/MiniMax-M3',
   localGatewayAuthEnabled: false,
   logLevel: 'info',
+  providers: {
+    gmi: {
+      baseUrl: 'https://api.gmi-serving.com',
+      model: 'MiniMaxAI/MiniMax-M3',
+      favorites: [],
+      cachedModels: [],
+    },
+    openrouter: {
+      baseUrl: 'https://openrouter.ai/api/v1',
+      model: '',
+      favorites: [],
+      cachedModels: [],
+    },
+    deepseek: {
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-chat',
+      favorites: [],
+      cachedModels: [],
+    },
+  },
 };
 
 function readDiskConfig() {
@@ -197,57 +243,111 @@ function readDiskConfig() {
     if (fs.existsSync(cfgPath)) {
       const data = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
       const merged = { ...DEFAULT_CONFIG, ...data };
-      merged.gmiBaseUrl = LOCKED_GMI_BASE_URL;
+      merged.providers = { ...DEFAULT_CONFIG.providers, ...(data.providers || {}) };
+
+      // Legacy single-provider migration
+      if (data.upstreamModel && (!data.providers || !data.providers.gmi)) {
+        merged.providers.gmi = {
+          baseUrl: data.gmiBaseUrl || DEFAULT_CONFIG.providers.gmi.baseUrl,
+          model: data.upstreamModel,
+        };
+      }
+      if (!merged.activeProvider) {
+        merged.activeProvider = 'openrouter';
+      }
       return merged;
     }
   } catch (e) {
     console.error('Failed to read config', e);
   }
-  return { ...DEFAULT_CONFIG };
+  return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 }
 
 function writeDiskConfig(cfg) {
   try {
-    const safe = { ...cfg };
-    delete safe.gmiBaseUrl;
-    fs.writeFileSync(configFile(), JSON.stringify(safe, null, 2), 'utf8');
+    fs.writeFileSync(configFile(), JSON.stringify(cfg, null, 2), 'utf8');
   } catch (e) {
     console.error('Failed to write config', e);
   }
 }
 
-function getApiKey() {
+function ensureFirstRunDirectories() {
   try {
-    if (safeStorage && typeof safeStorage.isEncryptionAvailable === 'function' && safeStorage.isEncryptionAvailable()) {
-      const p = apiKeyEncryptedFile();
+    const userData = getUserDataDir();
+    if (!fs.existsSync(userData)) {
+      fs.mkdirSync(userData, { recursive: true });
+    }
+    const logsDir = path.join(userData, 'logs');
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+    const cfgPath = configFile();
+    if (!fs.existsSync(cfgPath)) {
+      writeDiskConfig(DEFAULT_CONFIG);
+    }
+    if (safeStorage && typeof safeStorage.isEncryptionAvailable === 'function') {
+      logStartup('safeStorage-available', { available: safeStorage.isEncryptionAvailable() });
+    }
+  } catch (e) {
+    console.error('Failed to initialize first run directories', e);
+  }
+}
+
+function getApiKey(providerId = 'gmi') {
+  const normId = (providerId || 'gmi').toLowerCase();
+  try {
+    const isEnc = safeStorage && typeof safeStorage.isEncryptionAvailable === 'function' && safeStorage.isEncryptionAvailable();
+    if (isEnc) {
+      const p = apiKeyEncryptedFile(normId);
       if (fs.existsSync(p)) {
-        const encrypted = fs.readFileSync(p);
-        return safeStorage.decryptString(encrypted);
+        return safeStorage.decryptString(fs.readFileSync(p));
       }
-    } else {
-      const p = apiKeyPlainFile();
-      if (fs.existsSync(p)) {
-        return fs.readFileSync(p, 'utf8');
+      if (normId === 'gmi') {
+        const leg = legacyApiKeyEncryptedFile();
+        if (fs.existsSync(leg)) {
+          return safeStorage.decryptString(fs.readFileSync(leg));
+        }
+      }
+    }
+    const plain = apiKeyPlainFile(normId);
+    if (fs.existsSync(plain)) {
+      return fs.readFileSync(plain, 'utf8');
+    }
+    if (normId === 'gmi') {
+      const legPlain = legacyApiKeyPlainFile();
+      if (fs.existsSync(legPlain)) {
+        return fs.readFileSync(legPlain, 'utf8');
       }
     }
   } catch (e) {
-    console.error('Failed to get API key', e);
+    console.error('Failed to get API key for', normId, e);
   }
   return '';
 }
 
-function setApiKey(key) {
+function setApiKey(providerIdOrKey, maybeKey) {
+  let providerId = 'gmi';
+  let key = '';
+  if (maybeKey === undefined) {
+    key = String(providerIdOrKey || '');
+    const cfg = readDiskConfig();
+    providerId = cfg.activeProvider || 'gmi';
+  } else {
+    providerId = String(providerIdOrKey || 'gmi');
+    key = String(maybeKey || '');
+  }
+  const normId = providerId.toLowerCase();
   try {
-    if (safeStorage && typeof safeStorage.isEncryptionAvailable === 'function' && safeStorage.isEncryptionAvailable()) {
-      const p = apiKeyEncryptedFile();
-      const encrypted = safeStorage.encryptString(key);
-      fs.writeFileSync(p, encrypted);
+    const isEnc = safeStorage && typeof safeStorage.isEncryptionAvailable === 'function' && safeStorage.isEncryptionAvailable();
+    if (isEnc) {
+      const p = apiKeyEncryptedFile(normId);
+      fs.writeFileSync(p, safeStorage.encryptString(key));
     } else {
-      const p = apiKeyPlainFile();
+      const p = apiKeyPlainFile(normId);
       fs.writeFileSync(p, key, 'utf8');
     }
   } catch (e) {
-    console.error('Failed to set API key', e);
+    console.error('Failed to set API key for', normId, e);
   }
 }
 
@@ -270,17 +370,19 @@ function createWindow() {
   const preloadPath = path.join(__dirname, 'preload.js');
   const indexPath = path.join(__dirname, 'ui', 'index.html');
   logStartup('paths-resolved', { preload: preloadPath, index: indexPath, preloadExists: fs.existsSync(preloadPath), indexExists: fs.existsSync(indexPath) });
+  const appIcon = getAppIconPath();
   mainWindow = new BrowserWindow({
     width: 820,
     height: 680,
     minWidth: 760,
     minHeight: 600,
+    icon: appIcon,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
     },
-    title: 'TOOLBOXLAP Gateway \u2014 GMI Edition',
+    title: 'TOOLBOXLAP Gateway',
     backgroundColor: '#07090f',
   });
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
@@ -304,16 +406,121 @@ function emit(event, payload) {
   }
 }
 
+let tray = null;
+
+function showAndFocusMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+}
+
+function openLogsLocation() {
+  try {
+    const startupLog = _safeLogPath();
+    const userData = getUserDataDir();
+    if (fs.existsSync(startupLog)) {
+      shell.showItemInFolder(startupLog);
+    } else {
+      shell.openPath(userData);
+    }
+  } catch (_) {
+    try { shell.openPath(getUserDataDir()); } catch (_) { /* ignore */ }
+  }
+}
+
+function buildTrayMenu(isRunning) {
+  const template = [
+    { label: 'TOOLBOXLAP Gateway', enabled: false },
+    { type: 'separator' },
+    { label: isRunning ? '● Running' : '● Stopped', enabled: false },
+    { type: 'separator' },
+    {
+      label: 'Open Dashboard',
+      click: () => {
+        showAndFocusMainWindow();
+      },
+    },
+    {
+      label: 'Open Logs',
+      click: () => {
+        openLogsLocation();
+      },
+    },
+    {
+      label: 'Restart Gateway',
+      click: async () => {
+        await restartGatewayInternal();
+      },
+    },
+    {
+      label: isRunning ? 'Stop Gateway' : 'Start Gateway',
+      click: async () => {
+        if (isRunning) {
+          await stopGatewayInternal();
+        } else {
+          await startGatewayInternal();
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.quit();
+      },
+    },
+  ];
+  return Menu.buildFromTemplate(template);
+}
+
+function updateTray(state) {
+  if (!tray || tray.isDestroyed()) return;
+  const isRunning = state === 'running' || (state !== 'stopped' && !!gatewayHandle);
+  const icon = getTrayIcon(isRunning ? 'running' : 'stopped');
+  if (icon) {
+    tray.setImage(icon);
+  }
+  const tooltip = isRunning ? 'TOOLBOXLAP Gateway — Running' : 'TOOLBOXLAP Gateway — Stopped';
+  tray.setToolTip(tooltip);
+  tray.setContextMenu(buildTrayMenu(isRunning));
+}
+
+function createTray() {
+  if (tray && !tray.isDestroyed()) return;
+  try {
+    const initialIcon = getTrayIcon('stopped');
+    if (!initialIcon) return;
+    tray = new Tray(initialIcon);
+    tray.setToolTip('TOOLBOXLAP Gateway — Stopped');
+    tray.setContextMenu(buildTrayMenu(false));
+
+    tray.on('click', () => {
+      showAndFocusMainWindow();
+    });
+    tray.on('double-click', () => {
+      showAndFocusMainWindow();
+    });
+  } catch (e) {
+    logStartup('createTray-error', { message: e?.message });
+  }
+}
+
 app.whenReady().then(() => {
   logStartup('app-ready');
+  ensureFirstRunDirectories();
   try {
     createWindow();
+    createTray();
     logStartup('browser-window-created', { id: mainWindow?.id });
   } catch (e) {
     logStartup('createWindow-failed', { name: e?.name, message: e?.message });
     // Surface a minimal error window so the failure is visible.
     try {
-      const w = new BrowserWindow({ width: 600, height: 400, title: 'TOOLBOXLAP Gateway — startup error' });
+      const w = new BrowserWindow({ width: 600, height: 400, title: 'TOOLBOXLAP Gateway — startup error', icon: getAppIconPath() });
       w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(
         '<!doctype html><html><head><meta charset="utf-8"><title>Startup error</title>' +
         '<style>body{background:#07090f;color:#e6e9ef;font:14px/1.4 system-ui;padding:20px;white-space:pre-wrap;word-break:break-word;}</style>' +
@@ -329,6 +536,10 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  if (tray && !tray.isDestroyed()) {
+    try { tray.destroy(); } catch (_) { /* ignore */ }
+    tray = null;
+  }
   if (gatewayHandle) {
     gatewayHandle.close().then(() => {
       app.quit();
@@ -338,39 +549,119 @@ app.on('window-all-closed', () => {
   }
 });
 
+app.on('before-quit', () => {
+  if (tray && !tray.isDestroyed()) {
+    try { tray.destroy(); } catch (_) { /* ignore */ }
+    tray = null;
+  }
+});
+
 // ---------- IPC Handlers ----------
+
+ipcMain.handle('list-providers', () => {
+  return globalProviderRegistry.listManifests();
+});
+
+ipcMain.handle('get-provider-settings', (event, providerId) => {
+  const cfg = readDiskConfig();
+  const pId = (providerId || cfg.activeProvider || 'gmi').toLowerCase();
+  const manifest = globalProviderRegistry.getManifest(pId);
+  const defaultBaseUrl = manifest ? manifest.defaultBaseUrl : '';
+  const pSettings = (cfg.providers && cfg.providers[pId]) || {};
+  return {
+    providerId: pId,
+    baseUrl: pSettings.baseUrl || defaultBaseUrl,
+    model: pSettings.model || '',
+    hasApiKey: !!getApiKey(pId),
+    manifest: manifest || null,
+    cachedModels: Array.isArray(pSettings.cachedModels) ? pSettings.cachedModels : [],
+    favorites: Array.isArray(pSettings.favorites) ? pSettings.favorites : [],
+  };
+});
+
+ipcMain.handle('set-provider', (event, providerId) => {
+  if (!providerId || !globalProviderRegistry.has(providerId)) {
+    return { ok: false, error: `Unknown provider: '${providerId}'` };
+  }
+  const pId = providerId.toLowerCase();
+  const cfg = readDiskConfig();
+  cfg.activeProvider = pId;
+  const manifest = globalProviderRegistry.getManifest(pId);
+  const pSettings = (cfg.providers && cfg.providers[pId]) || {};
+  activeModelId = pSettings.model || '';
+  const cachedModels = Array.isArray(pSettings.cachedModels) ? pSettings.cachedModels : [];
+  const favorites = Array.isArray(pSettings.favorites) ? pSettings.favorites : [];
+  writeDiskConfig(cfg);
+  emit('active-provider', pId);
+  emit('active-model', activeModelId);
+  return {
+    ok: true,
+    providerId: pId,
+    manifest,
+    settings: {
+      baseUrl: pSettings.baseUrl || manifest?.defaultBaseUrl || '',
+      model: activeModelId,
+      hasApiKey: !!getApiKey(pId),
+      cachedModels,
+      favorites,
+    },
+  };
+});
+
+ipcMain.handle('save-provider-settings', (event, payload) => {
+  const cfg = readDiskConfig();
+  const pId = (payload?.providerId || cfg.activeProvider || 'gmi').toLowerCase();
+  if (!cfg.providers) cfg.providers = {};
+  if (!cfg.providers[pId]) cfg.providers[pId] = {};
+
+  if (payload.baseUrl !== undefined) {
+    cfg.providers[pId].baseUrl = payload.baseUrl;
+  }
+  if (payload.model !== undefined) {
+    cfg.providers[pId].model = payload.model;
+    if (cfg.activeProvider === pId) {
+      activeModelId = payload.model;
+      emit('active-model', activeModelId);
+    }
+  }
+  if (typeof payload.apiKey === 'string') {
+    setApiKey(pId, payload.apiKey.trim());
+  }
+  writeDiskConfig(cfg);
+  return {
+    ok: true,
+    providerId: pId,
+    settings: cfg.providers[pId],
+    hasApiKey: !!getApiKey(pId),
+  };
+});
 
 ipcMain.handle('get-config', () => {
   const c = readDiskConfig();
-  const k = getApiKey();
+  const activePId = (c.activeProvider || 'gmi').toLowerCase();
+  const k = getApiKey(activePId);
   const localToken = getLocalToken();
+  const manifest = globalProviderRegistry.getManifest(activePId);
+  const pSettings = (c.providers && c.providers[activePId]) || {};
   return {
     ...c,
+    provider: manifest?.displayName || activePId,
+    gmiBaseUrl: pSettings.baseUrl || manifest?.defaultBaseUrl || '',
+    upstreamModel: activeModelId || pSettings.model || '',
     hasApiKey: !!k,
     localGatewayToken: localToken,
-    provider: LOCKED_PROVIDER,
-    gmiBaseUrl: LOCKED_GMI_BASE_URL,
   };
 });
 
 ipcMain.handle('save-config', (event, cfg) => {
-  if (cfg.gmiApiKey !== undefined) {
-    setApiKey(cfg.gmiApiKey);
-    delete cfg.gmiApiKey;
-  }
   const current = readDiskConfig();
-  delete cfg.gmiBaseUrl;
-  delete cfg.provider;
-  writeDiskConfig({ ...current, ...cfg });
+  const merged = { ...current, ...cfg };
+  writeDiskConfig(merged);
   return true;
 });
 
 ipcMain.handle('update-config', (event, cfg) => {
   const current = readDiskConfig();
-  // Locked keys are NEVER accepted from the renderer.
-  delete cfg.gmiBaseUrl;
-  delete cfg.provider;
-  delete cfg.gmiApiKey;
   const safe = { ...current };
   if (typeof cfg.host === 'string') safe.host = cfg.host;
   if (Number.isFinite(cfg.port)) safe.port = cfg.port;
@@ -381,7 +672,6 @@ ipcMain.handle('update-config', (event, cfg) => {
     safe.localGatewayAuthEnabled = cfg.localGatewayAuthEnabled;
   }
   if (typeof cfg.logLevel === 'string') safe.logLevel = cfg.logLevel;
-  if (typeof cfg.upstreamModel === 'string') safe.upstreamModel = cfg.upstreamModel;
   if (typeof cfg.localGatewayToken === 'string' && cfg.localGatewayToken) {
     try {
       fs.writeFileSync(localTokenFile(), cfg.localGatewayToken, 'utf8');
@@ -391,23 +681,44 @@ ipcMain.handle('update-config', (event, cfg) => {
   return { ok: true, config: readDiskConfig() };
 });
 
-ipcMain.handle('set-api-key', (event, key) => {
+ipcMain.handle('set-api-key', (event, arg1, arg2) => {
+  let providerId = '';
+  let key = '';
+  if (arg2 === undefined) {
+    key = arg1;
+    const cfg = readDiskConfig();
+    providerId = cfg.activeProvider || 'gmi';
+  } else {
+    providerId = arg1;
+    key = arg2;
+  }
   if (typeof key !== 'string' || !key.trim()) {
     return { ok: false, error: 'API key is required' };
   }
-  setApiKey(key.trim());
-  emit('connection', { state: getApiKey() ? 'not-tested' : 'not-configured' });
+  setApiKey(providerId, key.trim());
+  emit('connection', { state: getApiKey(providerId) ? 'not-tested' : 'not-configured' });
   return { ok: true };
 });
 
-ipcMain.handle('test-connection', async () => {
-  const key = getApiKey();
-  if (!key) {
+ipcMain.handle('test-connection', async (event, providerId) => {
+  const cfg = readDiskConfig();
+  const pId = (providerId || cfg.activeProvider || 'gmi').toLowerCase();
+  if (!globalProviderRegistry.has(pId)) {
+    return { ok: false, reason: 'unknown-provider', error: `Provider '${pId}' not found` };
+  }
+  const provider = globalProviderRegistry.get(pId);
+  const key = getApiKey(pId);
+  const manifest = globalProviderRegistry.getManifest(pId);
+  const pSettings = (cfg.providers && cfg.providers[pId]) || {};
+  const baseUrl = pSettings.baseUrl || provider.defaultBaseUrl;
+
+  if (manifest?.supportsApiKey && !key) {
     emit('connection', { state: 'not-configured' });
     return { ok: false, reason: 'no-key', error: 'No API key configured' };
   }
+
   emit('connection', { state: 'testing' });
-  const r = await gmiTestConnection(key, LOCKED_GMI_BASE_URL);
+  const r = await provider.testConnection(key, baseUrl);
   if (r.ok) {
     emit('connection', { state: 'connected' });
   } else if (r.reason === 'invalid-key') {
@@ -418,13 +729,6 @@ ipcMain.handle('test-connection', async () => {
   return r;
 });
 
-/**
- * Set the active upstream model. Accepts either a plain string id (legacy)
- * or an object `{ selected, custom }` (current renderer contract). The custom
- * value wins if set, otherwise the selected fetched-model id is used.
- * The running gateway picks up the change on its next request via
- * `deps.resolveModels`.
- */
 ipcMain.handle('set-model', (event, payload) => {
   let id = '';
   if (typeof payload === 'string') {
@@ -438,13 +742,17 @@ ipcMain.handle('set-model', (event, payload) => {
     return { ok: false, error: 'Model id is required' };
   }
   const current = readDiskConfig();
-  writeDiskConfig({ ...current, upstreamModel: id });
-  // Update the in-memory active model so the next gateway request picks it
-  // up without a restart, and tell the renderer so the "Active model" pill
-  // updates immediately.
-  activeModelId = id;
-  emit('active-model', id);
-  return { ok: true, upstreamModel: id };
+  const pId = (payload?.providerId || current.activeProvider || 'gmi').toLowerCase();
+  if (!current.providers) current.providers = {};
+  if (!current.providers[pId]) current.providers[pId] = {};
+  current.providers[pId].model = id;
+  writeDiskConfig(current);
+
+  if (current.activeProvider === pId) {
+    activeModelId = id;
+    emit('active-model', id);
+  }
+  return { ok: true, upstreamModel: id, providerId: pId };
 });
 
 ipcMain.handle('regenerate-local-token', () => {
@@ -460,14 +768,31 @@ ipcMain.handle('regenerate-local-token', () => {
 
 ipcMain.handle('get-init', () => {
   const c = readDiskConfig();
-  const k = getApiKey();
+  const activePId = (c.activeProvider || 'gmi').toLowerCase();
+  const activeManifest = globalProviderRegistry.getManifest(activePId);
+  const pSettings = (c.providers && c.providers[activePId]) || {};
+  const k = getApiKey(activePId);
   const localToken = getLocalToken();
-  const upstream = (activeModelId || c.upstreamModel || '').trim();
+  const upstream = (activeModelId || pSettings.model || '').trim();
+  const cachedModels = Array.isArray(pSettings.cachedModels) ? pSettings.cachedModels : [];
+  const favorites = Array.isArray(pSettings.favorites) ? pSettings.favorites : [];
   return {
-    config: { ...c, gmiBaseUrl: LOCKED_GMI_BASE_URL, provider: LOCKED_PROVIDER },
+    config: { ...c, provider: activeManifest?.displayName || activePId },
+    activeProviderId: activePId,
+    activeManifest,
+    providers: globalProviderRegistry.listManifests(),
+    providerSettings: {
+      baseUrl: pSettings.baseUrl || activeManifest?.defaultBaseUrl || '',
+      model: upstream,
+      hasApiKey: !!k,
+      cachedModels,
+      favorites,
+    },
     hasApiKey: !!k,
     localGatewayToken: localToken,
-    models: [],
+    models: cachedModels,
+    cachedModels,
+    favorites,
     selectedModel: upstream,
     customModel: '',
     activeModel: upstream,
@@ -478,50 +803,81 @@ ipcMain.handle('get-init', () => {
   };
 });
 
-/**
- * Fetch the available models from GMI Cloud using the stored API key.
- * Returns a stable shape `{ ok, models, error }` that the renderer can
- * consume without try/catch, and never throws across IPC.
- */
-ipcMain.handle('fetch-models', async () => {
-  const key = getApiKey();
-  if (!key) {
+ipcMain.handle('fetch-models', async (event, providerId) => {
+  const cfg = readDiskConfig();
+  const pId = (providerId || cfg.activeProvider || 'gmi').toLowerCase();
+  if (!globalProviderRegistry.has(pId)) {
+    return { ok: false, error: `Provider '${pId}' not found` };
+  }
+  const provider = globalProviderRegistry.get(pId);
+  const key = getApiKey(pId);
+  const manifest = globalProviderRegistry.getManifest(pId);
+  const pSettings = (cfg.providers && cfg.providers[pId]) || {};
+  const baseUrl = pSettings.baseUrl || provider.defaultBaseUrl;
+
+  if (manifest?.supportsApiKey && !key) {
     return { ok: false, error: 'API key is required to fetch models', reason: 'no-key' };
   }
+
   try {
-    const models = await gmiFetchModels(key, LOCKED_GMI_BASE_URL);
-    if (!Array.isArray(models)) {
-      return { ok: false, error: 'Unexpected response shape from GMI' };
-    }
-    return { ok: true, models };
+    const models = await provider.fetchModels(key, baseUrl);
+    const modelList = Array.isArray(models) ? models : [];
+    // Cache to disk
+    const current = readDiskConfig();
+    if (!current.providers) current.providers = {};
+    if (!current.providers[pId]) current.providers[pId] = {};
+    current.providers[pId].cachedModels = modelList;
+    writeDiskConfig(current);
+    return { ok: true, models: modelList };
   } catch (e) {
     return { ok: false, error: (e && e.message) || 'Failed to fetch models' };
   }
 });
 
-/**
- * Start the gateway. Wires the `events` emitter so request events flow
- * into the activity tracker, and `resolveModels` so live model/alias
- * changes made via the renderer take effect on the next /v1/messages
- * request without a restart.
- */
-ipcMain.handle('start-gateway', async () => {
+ipcMain.handle('toggle-favorite-model', (event, providerId, modelId) => {
+  if (!modelId || typeof modelId !== 'string') {
+    return { ok: false, error: 'Model ID is required' };
+  }
+  const cfg = readDiskConfig();
+  const pId = (providerId || cfg.activeProvider || 'gmi').toLowerCase();
+  if (!cfg.providers) cfg.providers = {};
+  if (!cfg.providers[pId]) cfg.providers[pId] = {};
+  const favs = Array.isArray(cfg.providers[pId].favorites) ? [...cfg.providers[pId].favorites] : [];
+  const idx = favs.indexOf(modelId);
+  if (idx === -1) {
+    favs.push(modelId);
+  } else {
+    favs.splice(idx, 1);
+  }
+  cfg.providers[pId].favorites = favs;
+  writeDiskConfig(cfg);
+  emit('favorites', { providerId: pId, favorites: favs });
+  return { ok: true, providerId: pId, favorites: favs };
+});
+
+async function startGatewayInternal() {
   if (gatewayHandle) return { ok: true, url: gatewayHandle.url };
   const diskConfig = readDiskConfig();
-  emit('status', { state: 'starting' });
+  const activePId = (diskConfig.activeProvider || 'gmi').toLowerCase();
+  const pSettings = (diskConfig.providers && diskConfig.providers[activePId]) || {};
+  const pManifest = globalProviderRegistry.getManifest(activePId);
 
-  // Seed the live model state from disk so the very first request after
-  // start uses whatever the user last selected.
-  activeModelId = diskConfig.upstreamModel || activeModelId;
+  emit('status', { state: 'starting' });
+  updateTray('starting');
+
+  activeModelId = pSettings.model || activeModelId;
   activeAliasId = diskConfig.claudeModelAlias || activeAliasId;
 
   const appConfig = {
     host: diskConfig.host,
     port: diskConfig.port,
-    gmiBaseUrl: LOCKED_GMI_BASE_URL,
-    gmiApiKey: getApiKey() || null,
+    activeProvider: activePId,
+    apiKey: getApiKey(activePId) || null,
+    baseUrl: pSettings.baseUrl || pManifest?.defaultBaseUrl,
+    gmiBaseUrl: pSettings.baseUrl || pManifest?.defaultBaseUrl || 'https://api.gmi-serving.com',
+    gmiApiKey: getApiKey(activePId) || null,
     claudeModelAlias: diskConfig.claudeModelAlias,
-    upstreamModel: diskConfig.upstreamModel,
+    upstreamModel: activeModelId || pSettings.model || diskConfig.upstreamModel,
     localGatewayToken: diskConfig.localGatewayAuthEnabled ? getLocalToken() : null,
     logLevel: diskConfig.logLevel,
     upstreamTimeoutMs: 120000,
@@ -532,22 +888,41 @@ ipcMain.handle('start-gateway', async () => {
   try {
     gatewayHandle = await startServer(appConfig, {
       events: gatewayEvents,
-      resolveModels: () => ({
-        alias: diskConfig.claudeModelAlias,
-        model: activeModelId || diskConfig.upstreamModel,
-      }),
+      resolveModels: () => {
+        const c = readDiskConfig();
+        const p = (c.activeProvider || 'gmi').toLowerCase();
+        const s = (c.providers && c.providers[p]) || {};
+        return {
+          alias: c.claudeModelAlias,
+          model: activeModelId || s.model || c.upstreamModel,
+        };
+      },
+      resolveProvider: () => {
+        const c = readDiskConfig();
+        const pId = (c.activeProvider || 'gmi').toLowerCase();
+        const s = (c.providers && c.providers[pId]) || {};
+        const manifest = globalProviderRegistry.getManifest(pId);
+        return {
+          providerId: pId,
+          apiKey: getApiKey(pId) || null,
+          baseUrl: s.baseUrl || manifest?.defaultBaseUrl,
+          timeoutMs: 120000,
+        };
+      },
     });
     activity.start();
+    updateTray('running');
     emit('status', { state: 'running', url: gatewayHandle.url });
     emit('stats', currentStats());
     return { ok: true, url: gatewayHandle.url };
   } catch (e) {
+    updateTray('error');
     emit('status', { state: 'error', error: e.message });
     return { ok: false, error: e.message };
   }
-});
+}
 
-ipcMain.handle('stop-gateway', async () => {
+async function stopGatewayInternal() {
   if (gatewayHandle) {
     try {
       await gatewayHandle.close();
@@ -556,9 +931,23 @@ ipcMain.handle('stop-gateway', async () => {
   }
   // Stop the activity session (freezes uptime at zero, keeps counters).
   activity.stop();
+  updateTray('stopped');
   emit('status', { state: 'stopped' });
   emit('stats', currentStats());
   return true;
+}
+
+async function restartGatewayInternal() {
+  await stopGatewayInternal();
+  return await startGatewayInternal();
+}
+
+ipcMain.handle('start-gateway', async () => {
+  return await startGatewayInternal();
+});
+
+ipcMain.handle('stop-gateway', async () => {
+  return await stopGatewayInternal();
 });
 
 ipcMain.handle('is-running', () => !!gatewayHandle);

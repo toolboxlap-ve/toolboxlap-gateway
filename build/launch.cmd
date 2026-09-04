@@ -13,5 +13,9 @@ set NODE_ENV=
 set NODE_OPTIONS=
 set NODE_PATH=
 cd /d %~dp0
-"%~dp0TOOLBOXLAP Gateway GMI.exe" %*
+if exist "%~dp0TOOLBOXLAP Gateway.exe" (
+  "%~dp0TOOLBOXLAP Gateway.exe" %*
+) else (
+  "%~dp0TOOLBOXLAP Gateway GMI.exe" %*
+)
 exit /b %ERRORLEVEL%

@@ -14,6 +14,7 @@ toolbox-gateway-cfg.json
 startup.log
 
 # Generated builds and release bundles
+.cache/
 dist/
 candidate-dist/
 release/
@@ -31,6 +32,11 @@ SHA256*.txt
 SHA256SUMS*
 *.sha256
 
+# Runtime and local user data
+candidate-launch-data/
+userData/
+userdata/
+
 # Logs, test output, and process state
 *.log
 npm-debug.log*
@@ -43,12 +49,11 @@ coverage/
 
 # Caches and temporary files
 .npm/
-.cache/
 .electron/
 .eslintcache
+scratch/
 tmp/
 temp/
-candidate-launch-data/
 *.tmp
 *.temp
 *.swp

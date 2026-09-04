@@ -10,7 +10,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 
-import { loadConfig, isDevMode, isLoopbackHost, validateExposureConfig } from './config.js';
+import {
+  loadConfig,
+  isDevMode,
+  isLoopbackHost,
+  validateExposureConfig,
+} from './config.js';
 import { createLogger } from './logger.js';
 import {
   forwardToUpstream,
@@ -196,6 +201,21 @@ export function createRequestHandler(cfg, deps = {}) {
     return { alias: cfg.claudeModelAlias, model: cfg.upstreamModel };
   }
 
+  function currentProviderInfo() {
+    if (typeof deps.resolveProvider === 'function') {
+      try {
+        const r = deps.resolveProvider();
+        if (r && typeof r.providerId === 'string') return r;
+      } catch { /* fall back to static cfg */ }
+    }
+    return {
+      providerId: cfg.activeProvider || 'gmi',
+      apiKey: cfg.apiKey || cfg.gmiApiKey,
+      baseUrl: cfg.baseUrl || cfg.gmiBaseUrl,
+      timeoutMs: cfg.upstreamTimeoutMs,
+    };
+  }
+
   return async function handler(req, res) {
     const requestId = getRequestId(req);
     const log = createLogger(cfg.logLevel, requestId);
@@ -203,9 +223,8 @@ export function createRequestHandler(cfg, deps = {}) {
     res.setHeader('x-request-id', requestId);
 
     try {
-      // Network-visible binds require authentication on every route. The
-      // startup validator ensures the token itself is strong; this request
-      // guard is defense in depth and prevents unauthenticated discovery.
+      // Network-visible binds require authentication before routing so every
+      // endpoint, including health and model discovery, is protected.
       const auth = checkAuth(req, cfg);
       if (!isLoopbackHost(cfg.host) && !auth.ok) {
         log.warn('auth rejected', { reason: auth.reason });
@@ -215,11 +234,15 @@ export function createRequestHandler(cfg, deps = {}) {
       // ---- Routing ----
       if (req.method === 'GET' && req.url === '/health') {
         const live = currentModels();
+        const prov = currentProviderInfo();
         return jsonResponse(res, 200, {
           status: 'ok',
           gateway: cfg.gatewayName,
           version: cfg.gatewayVersion,
-          upstream_provider: new URL(cfg.gmiBaseUrl).host,
+          active_provider: prov.providerId,
+          upstream_provider: (() => {
+            try { return new URL(prov.baseUrl || cfg.gmiBaseUrl || 'https://api.gmi-serving.com').host; } catch { return 'unknown'; }
+          })(),
           configured_model_alias: live.alias,
           actual_model_id: live.model,
           auth_mode: isDevMode(cfg) ? 'dev' : (cfg.localGatewayToken ? 'bearer' : 'open'),
@@ -233,6 +256,7 @@ export function createRequestHandler(cfg, deps = {}) {
 
       if (req.method === 'POST' && (req.url === '/v1/messages' || req.url.startsWith('/v1/messages?'))) {
         const models = currentModels();
+        const prov = currentProviderInfo();
 
         // ---- Auth ----
         if (!auth.ok) {
@@ -278,11 +302,19 @@ export function createRequestHandler(cfg, deps = {}) {
         });
 
         // ---- Forward ----
+        const activeCfg = {
+          ...cfg,
+          activeProvider: prov.providerId,
+          apiKey: prov.apiKey,
+          baseUrl: prov.baseUrl,
+          upstreamTimeoutMs: prov.timeoutMs || cfg.upstreamTimeoutMs,
+        };
+
         let upstream;
         try {
           upstream = await forward(
             { body: upstreamBody, requestId },
-            cfg,
+            activeCfg,
             res,
           );
         } catch (e) {

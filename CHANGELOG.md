@@ -1,9 +1,44 @@
 # Changelog
 
-All notable changes to **TOOLBOXLAP Gateway — GMI Edition** are documented
+All notable changes to **TOOLBOXLAP Gateway** are documented
 here. The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
-## [Unreleased]
+## [1.0.0-beta] — 2026-09-04
+
+### Added
+
+- Added OpenRouter and DeepSeek alongside the existing GMI Cloud provider.
+- Added a provider abstraction, dynamic provider registry, and manifest-driven
+  provider metadata and UI capabilities.
+- Added an OpenAI-compatible provider base for OpenRouter and DeepSeek.
+- Added canonical request, response, streaming-event, and protocol translation
+  layers between Claude's Anthropic-style requests and OpenAI-compatible
+  upstreams.
+- Added per-provider model discovery, searchable model selection, cached model
+  lists, and favorites.
+- Added provider, protocol, canonical-model, UI-state, desktop-branding, and
+  runtime-routing tests.
+
+### Changed
+
+- Reworked the desktop interface from the GMI-only edition into a
+  multi-provider management UI.
+- Added runtime provider and model switching without restarting the local
+  gateway, while preserving provider-specific settings.
+- Preserved the original GMI Cloud adapter and backward-compatible GMI
+  source/CLI configuration.
+- Expanded request statistics and sanitized activity visibility for successful
+  and failed gateway requests.
+- Updated Windows branding and portable artifact naming to
+  `TOOLBOXLAP-Gateway-v1.0-Beta-Portable.exe`.
+
+### Compatibility
+
+- Streaming, tools, vision, reasoning, context limits, and Claude Code behavior
+  depend on the selected provider and model. Provider metadata does not imply
+  identical support across every model.
+- LM Studio and Ollama remain planned future providers and are not implemented
+  in this release.
 
 ## [0.2.9] — 2026-08-27
 
@@ -33,7 +68,7 @@ here. The format is loosely based on [Keep a Changelog](https://keepachangelog.c
 
 ## [0.2.8] — 2026-08-26
 
-- Current published Windows release.
+- Previous published Windows GMI-focused release.
 - Verified artifact: `TOOLBOXLAP-Gateway-GMI-0.2.8.exe`.
 - Verified SHA-256:
   `BF5F5A1EA740FE9575789E9E845A07C8035983E4E073313E0C38CECE0E2643EF`.

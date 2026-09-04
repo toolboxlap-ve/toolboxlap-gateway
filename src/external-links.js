@@ -7,7 +7,7 @@
 export const EXTERNAL_LINKS = Object.freeze({
   youtube: 'https://www.youtube.com/@TOOLBOXLAP-u1c',
   website: 'https://toolboxlap.com/',
-  github: 'https://github.com/toolboxlap-ve',
+  github: 'https://github.com/toolboxlap-ve/toolboxlap-gateway',
 });
 
 /**
